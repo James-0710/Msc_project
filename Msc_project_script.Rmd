@@ -1,0 +1,312 @@
+---
+title: "Msc_project"
+output: html_document
+date: "2025-06-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+```
+
+
+
+```{r, loading packages, warning = FALSE, message = FALSE}
+BiocManager::install("scMerge", version = "devel")
+library(scMerge)
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scMerge)
+  library(scater)
+  })
+```
+
+## R Markdown
+
+
+```{r}
+#exp from the paper
+data(segList)
+segList$human$human_scSEG # human SEG
+segList$mouse$mouse_scSEG # mouse SEG
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r}
+# processing own data
+data <- read.table("/home/s2157192/Msc_project/", header = TRUE, sep = "\t")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+
+
+## ----loading packages, warning = FALSE, message = FALSE-----------------------
+suppressPackageStartupMessages({
+  library(SingleCellExperiment)
+  library(scMerge)
+  library(scater)
+  })
+
+## ----subsampling scMergeData, eval = FALSE, echo = FALSE----------------------
+# library(genefilter)
+# 
+# load("~/Downloads/sce_mESC.rda")
+# data("segList_ensemblGeneID", package = "scMerge")
+# 
+# set.seed(2019)
+# 
+# example_sce = sce_mESC[, sce_mESC$batch %in% c("batch2", "batch3")]
+# example_sce$batch = droplevels(example_sce$batch)
+# batch2Sampled = sample(colnames(example_sce[,example_sce$batch == "batch2"]), 100)
+# batch3Sampled = sample(colnames(example_sce[,example_sce$batch == "batch3"]), 100)
+# 
+# countsMat = SingleCellExperiment::counts(example_sce)
+# 
+# batchTest = rowFtests(countsMat, fac = example_sce$batch)
+# celltypeTest = rowFtests(countsMat, fac = factor(example_sce$cellTypes))
+# 
+# commonSegGenes = intersect(segList_ensemblGeneID$mouse$mouse_scSEG, rownames(sce_mESC))
+# 
+# keepGenes = unique(c(commonSegGenes,
+# rownames(batchTest)[rank(batchTest$p.value) < 50],
+# rownames(celltypeTest)[rank(celltypeTest$p.value) < 250]
+# ))
+# 
+# example_sce = example_sce[keepGenes, c(batch2Sampled, batch3Sampled)]
+# example_sce = example_sce[base::rowSums(counts(example_sce)) != 0, base::colSums(counts(example_sce)) != 0]
+# 
+# table(example_sce$batch,
+# example_sce$cellTypes)
+# 
+# dim(example_sce)
+# 
+# example_sce = runPCA(example_sce, exprs_values = "logcounts")
+# scater::plotPCA(example_sce,
+# colour_by = "cellTypes",
+# shape_by = "batch")
+# 
+# save(example_sce,
+# file = "data/example_sce.rda")
+
+## ----loading data-------------------------------------------------------------
+## Subsetted mouse ESC data
+data("example_sce", package = "scMerge")
+
+## ----checking raw data--------------------------------------------------------
+example_sce = runPCA(example_sce, exprs_values = "logcounts")
+
+scater::plotPCA(
+  example_sce, 
+  colour_by = "cellTypes", 
+  shape_by = "batch")
+
+## ----load SEG-----------------------------------------------------------------
+## single-cell stably expressed gene list
+data("segList_ensemblGeneID", package = "scMerge")
+head(segList_ensemblGeneID$mouse$mouse_scSEG)
+
+## ----t1, echo = FALSE---------------------------------------------------------
+t1 = Sys.time()
+
+## ----unsupervised_default, results='hide',fig.show='hide'---------------------
+scMerge_unsupervised <- scMerge(
+  sce_combine = example_sce, 
+  ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+  kmeansK = c(3, 3),
+  assay_name = "scMerge_unsupervised")
+
+## ----t2, echo = FALSE---------------------------------------------------------
+t2 = Sys.time()
+
+## ----unsupervised_default_plotting--------------------------------------------
+scMerge_unsupervised = runPCA(scMerge_unsupervised, exprs_values = "scMerge_unsupervised")
+scater::plotPCA(
+  scMerge_unsupervised, 
+  colour_by = "cellTypes", 
+  shape_by = "batch")
+
+## ----unsupervised_prop1, results='hide',fig.show='hide'-----------------------
+scMerge_unsupervised_all <- scMerge(
+  sce_combine = example_sce, 
+  ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+  kmeansK = c(3, 3),
+  assay_name = "scMerge_unsupervised_all",
+  replicate_prop = 1)
+
+## ----unsupervised_prop1_plotting----------------------------------------------
+scMerge_unsupervised_all = runPCA(scMerge_unsupervised_all,
+                                  exprs_values = "scMerge_unsupervised_all")
+
+scater::plotPCA(
+  scMerge_unsupervised_all, 
+  colour_by = "cellTypes", 
+  shape_by = "batch")
+
+## ----supervised, results='hide',fig.show='hide'-------------------------------
+scMerge_supervised <- scMerge(
+  sce_combine = example_sce,
+  ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+  kmeansK = c(3, 3),
+  assay_name = "scMerge_supervised",
+  cell_type = example_sce$cellTypes)
+
+## ----supervised_plotting------------------------------------------------------
+scMerge_supervised = runPCA(scMerge_supervised,
+                            exprs_values = "scMerge_supervised")
+
+scater::plotPCA(
+  scMerge_supervised,
+  colour_by = "cellTypes",
+  shape_by = "batch")
+
+## ----semi_supervised1, results='hide',fig.show='hide'-------------------------
+scMerge_semisupervised1 <- scMerge(
+  sce_combine = example_sce,
+  ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+  kmeansK = c(3,3),
+  assay_name = "scMerge_semisupervised1",
+  cell_type = example_sce$cellTypes,
+  cell_type_inc = which(example_sce$cellTypes == "2i"), 
+  cell_type_match = FALSE)
+
+## ----semi_supervised1_plotting------------------------------------------------
+scMerge_semisupervised1 = runPCA(scMerge_semisupervised1,
+                                 exprs_values = "scMerge_semisupervised1")
+
+scater::plotPCA(
+  scMerge_semisupervised1, 
+  colour_by = "cellTypes", 
+  shape_by = "batch")
+
+## ----semi_supervised2, results='hide',fig.show='hide'-------------------------
+scMerge_semisupervised2 <- scMerge(
+  sce_combine = example_sce,
+  ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+  kmeansK = c(3, 3),
+  assay_name = "scMerge_semisupervised2",
+  cell_type = example_sce$cellTypes,
+  cell_type_inc = NULL,
+  cell_type_match = TRUE)
+
+## ----semi_supervised2_plotting------------------------------------------------
+scMerge_semisupervised2 = runPCA(scMerge_semisupervised2,
+                                 exprs_values = "scMerge_semisupervised2")
+
+scater::plotPCA(
+  scMerge_semisupervised2, 
+  colour_by = "cellTypes", 
+  shape_by = "batch")
+
+## ----segIndex1, eval = FALSE--------------------------------------------------
+# exprs_mat = SummarizedExperiment::assay(example_sce, 'counts')
+# result = scSEGIndex(exprs_mat = exprs_mat)
+
+## ----segIndex2----------------------------------------------------------------
+## SEG list in ensemblGene ID
+data("segList_ensemblGeneID", package = "scMerge") 
+## SEG list in official gene symbols
+data("segList", package = "scMerge")
+
+## SEG list for human scRNA-Seq data
+head(segList$human$human_scSEG)
+
+## SEG list for human bulk microarray data
+head(segList$human$bulkMicroarrayHK)
+
+## SEG list for human bulk RNASeq data
+head(segList$human$bulkRNAseqHK)
+
+## ----t3, echo = FALSE---------------------------------------------------------
+t3 = Sys.time()
+
+## ----computation_fast, results='hide',fig.show='hide'-------------------------
+library(BiocSingular)
+scMerge_fast <- scMerge(
+  sce_combine = example_sce, 
+  ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+  kmeansK = c(3, 3),
+  assay_name = "scMerge_fast", 
+  BSPARAM = IrlbaParam(), 
+  svd_k = 20)
+
+## ----t4, echo = FALSE---------------------------------------------------------
+t4 = Sys.time()
+
+## ----computation_svd_plotting-------------------------------------------------
+paste("Normally, scMerge takes ", round(t2 - t1, 2), " seconds")
+paste("Fast version of scMerge takes ", round(t4 - t3, 2), " seconds")
+
+scMerge_fast = runPCA(scMerge_fast, exprs_values = "scMerge_fast")
+
+scater::plotPCA(
+  scMerge_fast, 
+  colour_by = "cellTypes", 
+  shape_by = "batch") +
+  labs(title = "fast scMerge yields similar results to the default version")
+
+## ----parallel1, eval = FALSE--------------------------------------------------
+# library(BiocParallel)
+# scMerge_parallel <- scMerge(
+#   sce_combine = example_sce,
+#   ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+#   kmeansK = c(3, 3),
+#   assay_name = "scMerge_parallel",
+#   BPPARAM = MulticoreParam(workers = 2)
+# )
+
+## ----eval = FALSE-------------------------------------------------------------
+# library(Matrix)
+# library(DelayedArray)
+# 
+# sparse_input = example_sce
+# 
+# assay(sparse_input, "counts") = as(counts(sparse_input), "dgeMatrix")
+# assay(sparse_input, "logcounts") = as(logcounts(sparse_input), "dgeMatrix")
+# 
+# scMerge_sparse = scMerge(
+#   sce_combine = sparse_input,
+#   ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+#   kmeansK = c(3, 3),
+#   assay_name = "scMerge_sparse")
+
+## ----eval = FALSE-------------------------------------------------------------
+# library(HDF5Array)
+# library(DelayedArray)
+# 
+# DelayedArray:::set_verbose_block_processing(TRUE) ## To monitor block processing
+# 
+# hdf5_input = example_sce
+# 
+# assay(hdf5_input, "counts") = as(counts(hdf5_input), "HDF5Array")
+# assay(hdf5_input, "logcounts") = as(logcounts(hdf5_input), "HDF5Array")
+# 
+# scMerge_hdf5 = scMerge(
+#   sce_combine = sparse_input,
+#   ctl = segList_ensemblGeneID$mouse$mouse_scSEG,
+#   kmeansK = c(3, 3),
+#   assay_name = "scMerge_hdf5")
+
+## ----reference----------------------------------------------------------------
+citation("scMerge")
+
+## ----session info-------------------------------------------------------------
+sessionInfo()
+```
+
+
+
+
+
+
+
+
+
+
